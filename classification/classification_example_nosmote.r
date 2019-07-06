@@ -17,7 +17,6 @@ library(glmnet)
 library(ROCR)
 library(data.table)
 library(Hmisc)
-library(DMwR)
 
 df <- read.delim("13_methylation", header = TRUE, sep = "\t")
 rownames(df) <- df$X
@@ -33,6 +32,7 @@ f1_list <- rep(0,20)
 recall_list <- rep(0,20)
 specificity_list <- rep(0,20)
 auc_list <- rep(0,20)
+
 
 opt.cut = function(perf, pred){
     cut.ind = mapply(FUN=function(x, y, p){
@@ -65,49 +65,27 @@ for (j in 1:20) {
     cv_Ind %<>% rbindlist() %>% setorder(Ind)
     data %>% setorder(Ind)
 
-    #making sure that the number of original and synthetic samples in each fold is roughly the same
-
-    data$Ratio <- NULL
-    data$Numsuccess <- NULL
-    data$Numtrials <- NULL
-    data$Ind <- NULL
-
-    for (i in 1:4) {
-        foldindx = cv_Ind$fold == i
-        myfold <- data[foldindx,]
-        mysmote <- SMOTE(euploid ~ ., data = myfold)
-        numsamples = length(mysmote$euploid)
-        if (i==1){
-            foldid <- rep(1,numsamples)
-            smote_train = mysmote
-        } else{
-            foldid <- append(foldid, rep(i,numsamples))
-            smote_train <- rbind(smote_train, mysmote)
-        }
-    }
-
-    
-    #cv_Ind_train = cv_Ind$fold != 5
-    #data_train = data[cv_Ind_train,]
-    #smote_train <- SMOTE(euploid ~ ., data  = data_train)
-    print(table(smote_train$euploid))
-
+    cv_Ind_train = cv_Ind$fold != 5
     cv_Ind_test = cv_Ind$fold ==5
-    data_test = data[cv_Ind_test,]
 
-    Y_ <- smote_train$euploid
-    X_ <- smote_train
+    train_foldid = cv_Ind[cv_Ind$fold != 5]
+    train_foldid = as.numeric(train_foldid$fold)
+
+    Y_ <- data$euploid
+    X_ <- data
     X_$euploid <- NULL
-    X <- data.matrix(X_)
-    Y <- Y_
+    X_$Ratio <- NULL
+    X_$Numsuccess <- NULL
+    X_$Numtrials <- NULL
+    X_$Ind <- NULL
+    X <- data.matrix(X_[cv_Ind_train,])
+    Y <- Y_[cv_Ind_train]
 
 
-    cv0 = cv.glmnet(X,Y,family = "binomial", type.measure="deviance", foldid=foldid, standardize=T, alpha=0)
+    cv0 = cv.glmnet(X,Y,family = "binomial", type.measure="deviance", foldid = train_foldid, standardize=T, alpha=0)
 
-    y_real <- data_test$euploid
-    x_pred_ <- data_test
-    x_pred_$euploid <- NULL
-    x_pred <- data.matrix(x_pred_)
+    y_real <- Y_[cv_Ind_test]
+    x_pred <- as.matrix(X_[cv_Ind_test,])
     y_pred <- predict(cv0, newx = x_pred, type = "response",  s="lambda.min")
 
 
@@ -152,6 +130,7 @@ for (j in 1:20) {
     predi <- prediction(y_pred, y_real)
     roc.perf <- prediction(y_pred, y_real) %>% performance(measure = "tpr", x.measure = "fpr")
     print(opt.cut(roc.perf, predi))
+
 
     if (j==1) {
         tmp_coeffs <- coef(cv0, s=cv0$lambda.min)
