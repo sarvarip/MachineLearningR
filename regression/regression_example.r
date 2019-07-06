@@ -10,7 +10,6 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 
-
 library(glmnet)
 df <- read.delim("13_methylation", header = TRUE, sep = "\t")
 rownames(df) <- df$X
@@ -26,6 +25,7 @@ rownames(data) <- data$Row.names
 data$Row.names <- NULL
 
 rsq_list <- rep(0,20)
+mse_list <- rep(0,20)
 
 for (i in 1:20) {
 
@@ -39,7 +39,7 @@ cutoff = round(0.8*length(rownames(X_)))
 X <- as.matrix(X_[1:cutoff,])
 Y <- as.matrix(Y_[1:cutoff])
 
-cv0 = cv.glmnet(X,Y,type.measure="mse",alpha=0)
+cv0 = cv.glmnet(X,Y,type.measure="mse",alpha=0,standardize=T)
 
 if (i==1) {
     tmp_coeffs <- coef(cv0, s=cv0$lambda.min)
@@ -62,6 +62,7 @@ y_pred <- predict(cv0, newx = x_pred, s="lambda.min")
 result.lm = lm(y_real ~ y_pred)
 cbind(y_real, y_pred)
 rsq_list[i] <- summary(result.lm)$r.squared
+mse_list[i] <- mean((y_real - y_pred)^2)
 
 }
 
@@ -69,4 +70,7 @@ df_coef
 apply(df_coef, 1, mean)
 print(paste("Mean R squared: ", mean(rsq_list)))
 print(paste("Std dev of R squared: ", sd(rsq_list)))
+print(paste("Mean MSE: ", mean(mse_list)))
+print(paste("Std dev of MSE: ", sd(mse_list)))
+
 
