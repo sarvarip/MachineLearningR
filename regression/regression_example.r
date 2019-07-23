@@ -24,20 +24,33 @@ data <- merge(df, df_s, by=0)
 rownames(data) <- data$Row.names
 data$Row.names <- NULL
 
-rsq_list <- rep(0,20)
-mse_list <- rep(0,20)
+get.rsq <- function(y, y.hat) {
+  sst <- sum((y - mean(y))^2)
+  sse <- sum((y.hat - y)^2)
+  return(1 - sse/sst)
+}
 
-for (i in 1:20) {
+cross.val.fold <- 10
+n.individuals <- nrow(data)
+print("Number of samples")
+print(n.individuals)
+parts <- sample(rep(1:cross.val.fold, length.out=n.individuals))
 
-data <- data[sample(nrow(data)),]
-Y_ <- data$Ratio
-X_ <- data
+rsq_list <- rep(0,cross.val.fold)
+varexp_train <- rep(0,cross.val.fold)
+varexp_list <- rep(0,cross.val.fold)
+mse_list <- rep(0,cross.val.fold)
+
+for (i in 1:cross.val.fold) {
+
+data$Numsuccess <- NULL
+data$Numtrials <- NULL
+training.individuals <- rownames(data)[which(parts != i)]
+testing.individuals <- rownames(data)[which(parts == i)]
+X_ <- data[training.individuals,]
+Y <- as.matrix(X_$Ratio)
 X_$Ratio <- NULL
-X_$Numsuccess <- NULL
-X_$Numtrials <- NULL
-cutoff = round(0.8*length(rownames(X_)))
-X <- as.matrix(X_[1:cutoff,])
-Y <- as.matrix(Y_[1:cutoff])
+X <- as.matrix(X_)
 
 cv0 = cv.glmnet(X,Y,type.measure="mse",alpha=0,standardize=T)
 
@@ -56,13 +69,19 @@ else {
     colnames(df_coef)[i] <- tmp
 }
 
-y_real <- Y_[(cutoff+1):length(Y_)]
-x_pred <- as.matrix(X_[(cutoff+1):length(Y_),])
+X.test <- data[testing.individuals,]
+y_real <- as.matrix(X.test$Ratio)
+X.test$Ratio <- NULL
+x_pred <- as.matrix(X.test)
+
 y_pred <- predict(cv0, newx = x_pred, s="lambda.min")
+y.train.pred <- predict(cv0, newx=X, s="lambda.min")
 result.lm = lm(y_real ~ y_pred)
-cbind(y_real, y_pred)
+print(cbind(y_real, y_pred))
 rsq_list[i] <- summary(result.lm)$r.squared
 mse_list[i] <- mean((y_real - y_pred)^2)
+varexp_list[i] <- get.rsq(y_real, y_pred)
+varexp_train[i] <- get.rsq(Y, y.train.pred)
 
 }
 
@@ -72,5 +91,10 @@ print(paste("Mean R squared: ", mean(rsq_list)))
 print(paste("Std dev of R squared: ", sd(rsq_list)))
 print(paste("Mean MSE: ", mean(mse_list)))
 print(paste("Std dev of MSE: ", sd(mse_list)))
+print(paste("Mean of variance explained: ", mean(varexp_list)))
+print(paste("Std dev of variance explained: ", sd(varexp_list)))
+print(paste("Training set: Mean of variance explained: ", mean(varexp_train)))
+print(paste("Training set: Std dev of variance explained: ", sd(varexp_train)))
+
 
 

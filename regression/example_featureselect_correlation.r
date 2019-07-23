@@ -22,60 +22,84 @@ data <- merge(df, df_s, by=0)
 rownames(data) <- data$Row.names
 data$Row.names <- NULL
 
-rsq_list <- rep(0,5)
-mse_list <- rep(0,5)
-num_features = 10
-corr_list <- rep("", 25*num_features)
+get.rsq <- function(y, y.hat) {
+  sst <- sum((y - mean(y))^2)
+  sse <- sum((y.hat - y)^2)
+  return(1 - sse/sst)
+}
 
-for (j in 1:5) {
+cross.val.fold <- 5
+n.individuals <- nrow(data)
+print("Number of samples")
+print(n.individuals)
+parts <- sample(rep(1:cross.val.fold, length.out=n.individuals))
+rsq_list <- rep(0,cross.val.fold)
+varexp_list <- rep(0,cross.val.fold)
+mse_list <- rep(0,cross.val.fold)
+num_features <- 10
+hyperparams.to.try <- 10
+corr_list <- rep("", cross.val.fold*cross.val.fold*num_features)
+data$Numsuccess <- NULL
+data$Numtrials <- NULL
+
+for (j in 1:cross.val.fold) {
 
 data <- data[sample(nrow(data)),]
 
-data$Numsuccess <- NULL
-data$Numtrials <- NULL
-cutoff = round(0.8*nrow(data))
-data_train <- data[1:cutoff,]
-data_test <- data[(cutoff+1):nrow(data),]
+training.individuals <- rownames(data)[which(parts != j)]
+testing.individuals <- rownames(data)[which(parts == j)]
+data_train <- data[training.individuals,]
+data_test <- data[testing.individuals,]
 
-score_params <- rep(0,5)
+score_params <- rep(0,cross.val.fold)
 model_params = list()
 corrs_params = list()
-corr_paramslist = rep("", 50*num_features)
-cutoff_outer <- as.integer(cutoff)
+corr_paramslist = rep("", cross.val.fold*hyperparams.to.try*num_features)
 
-lambdas_to_try <- 10^seq(-6, -1, length.out = 10)
+lambdas_to_try <- 10^seq(-1, 4, length.out = hyperparams.to.try)
 for (lambda in seq(lambdas_to_try)) {
-    score_fold <- rep(0,5)
-    for (i in 1:5) {
+    score_fold <- rep(0,cross.val.fold)
+
+    n.individuals <- nrow(data_train)
+    parts <- sample(rep(1:cross.val.fold, length.out=n.individuals))
+
+    for (i in 1:cross.val.fold) {
         print("Info")
         print(lambda)
         print(i)
-        Y_ <- data_train$Ratio
-        X_ <- data_train #[,1:500]
+        
+        training.individuals <- rownames(data_train)[which(parts != i)]
+        testing.individuals <- rownames(data_train)[which(parts == i)]
+        data_train_train <- data_train[training.individuals,]
+        X_ <- data_train_train
         X_$Ratio <- NULL
-        cutoff <- as.integer(round(0.8*nrow(data_train)))
-        corrs = apply(X_[1:cutoff,],2,cor,y=Y_[1:cutoff])
+
+        corrs = apply(X_,2,cor,y=data_train_train$Ratio)
         corrs <- corrs[order(-corrs)]
-        start = 1+(lambda-1)*5*num_features+(i-1)*num_features
-        end = (lambda-1)*5*num_features+i*num_features
+        start = 1+(lambda-1)*cross.val.fold*num_features+(i-1)*num_features
+        end = (lambda-1)*cross.val.fold*num_features+i*num_features
         corr_paramslist[start:end] = names(corrs[1:num_features])
+
         X_red <- X_[,names(corrs[1:num_features])]
-        X <- as.matrix(X_red[1:cutoff,])
-        Y <- as.matrix(Y_[1:cutoff])
+
+        X <- as.matrix(X_red)
+        Y <- as.matrix(data_train_train$Ratio)
+        
         model <- glmnet(X,Y,alpha = 0,lambda = lambdas_to_try[lambda],standardize = TRUE)
-        y_real <- Y_[(cutoff+1):cutoff_outer]
-        x_pred <- X_red[(cutoff+1):cutoff_outer,]
+        data_train_test <- data_train[testing.individuals,]
+        y_real <- as.matrix(data_train_test$Ratio)
+        x_pred <- data_train_test[,names(corrs[1:num_features])]
+        x_pred$Ratio <- NULL
         x_pred <- as.matrix(x_pred)
         y_pred <- predict(model, newx = x_pred)
-        result.lm = lm(y_real ~ y_pred)
-        score_fold[i] <- summary(result.lm)$r.squared
+        score_fold[i] <- get.rsq(y_real, y_pred)
     }
     score_params[lambda] = mean(score_fold)
     model_params[[lambda]] = model
     corrs_params[[lambda]] = names(corrs[1:num_features])
 }
-best_param = which.min(score_params)
-print("R^2 on crossval set: ")
+best_param = which.max(score_params)
+print("Variance explained on crossval set: ")
 print(score_params[best_param])
 chosen_lambda = lambdas_to_try[best_param]
 print("Chosen lambda: ")
@@ -84,10 +108,10 @@ print("Index of chosen lambda: ")
 print(best_param)
 chosen_model = model_params[[best_param]]
 features = corrs_params[[best_param]]
-start = 1+ (j-1)*5*num_features
-end = j*5*num_features
-start_ = 1+(best_param-1)*5*num_features
-end_ = best_param*5*num_features
+start = 1+ (j-1)*cross.val.fold*num_features
+end = j*cross.val.fold*num_features
+start_ = 1+(best_param-1)*cross.val.fold*num_features
+end_ = best_param*cross.val.fold*num_features
 corr_list[start:end] = corr_paramslist[start_:end_]
 print(corr_list)
 
@@ -102,6 +126,7 @@ result.lm = lm(y_real ~ y_pred)
 cbind(y_real, y_pred)
 rsq_list[j] <- summary(result.lm)$r.squared
 mse_list[j] <- mean((y_real - y_pred)^2)
+varexp_list[j] <- get.rsq(y_real, y_pred)
 
 }
 
@@ -113,4 +138,6 @@ print(paste("Mean R squared: ", mean(rsq_list)))
 print(paste("Std dev of R squared: ", sd(rsq_list)))
 print(paste("Mean MSE: ", mean(mse_list)))
 print(paste("Std dev of MSE: ", sd(mse_list)))
+print(paste("Mean of variance explained: ", mean(varexp_list)))
+print(paste("Std dev of variance explained: ", sd(varexp_list)))
 
