@@ -107,7 +107,11 @@ print(chosen_lambda)
 print("Index of chosen lambda: ")
 print(best_param)
 chosen_model = model_params[[best_param]]
-features = corrs_params[[best_param]]
+features = corrs_params[[best_param]] # writing out the features 
+# used in the last cross-validation fold corresponding to the 
+# best (chosen) lambda. Not used, here for simplicity
+# reasons, there are better ways to choose features 
+# that are to be used on a new set of incoming data
 start = 1+ (j-1)*cross.val.fold*num_features
 end = j*cross.val.fold*num_features
 start_ = 1+(best_param-1)*cross.val.fold*num_features
