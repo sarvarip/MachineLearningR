@@ -12,20 +12,15 @@
 
 library(glmnet)
 
-df <- readRDS('../methylation.rds')
-rownames(df) <- gsub("X", "", rownames(df))
-
-df_s <- read.csv(file="../agedat", header=TRUE, sep="\t")
-df_s <- df_s[!(is.na(df_s$Male.Age) | df_s$Male.Age==""), ]
-rownames(df_s) <- df_s$Laboratory.ID
-df_s$Laboratory.ID <- NULL
+df <- readRDS("age_1000topvariance.rds")
+#rownames(df) <- gsub("X", "", rownames(df))
+df_s <- read.csv(file="ages_successdatratio", header=TRUE, sep="\t")
+df_s <- df_s[!(is.na(df_s$Female.Age) | df_s$Female.Age==""), ]
+df_s <- df_s[!(is.na(df_s$Ratio) | df_s$Ratio==""), ]
 
 data <- merge(df, df_s, by=0)
 rownames(data) <- data$Row.names
 data$Row.names <- NULL
-
-data$Age <- data$Male.Age
-data$Male.Age <- NULL
 
 get.rsq <- function(y, y.hat) {
   sst <- sum((y - mean(y))^2)
@@ -42,7 +37,7 @@ rsq_list <- rep(0,cross.val.fold)
 varexp_list <- rep(0,cross.val.fold)
 mse_list <- rep(0,cross.val.fold)
 num_features <- 10
-hyperparams.to.try <- 5
+hyperparams.to.try <- 10
 corr_list <- rep("", cross.val.fold*cross.val.fold*num_features)
 data$Numsuccess <- NULL
 data$Numtrials <- NULL
@@ -58,6 +53,7 @@ data_test <- data[testing.individuals,]
 
 score_params <- rep(0,cross.val.fold)
 model_params = list()
+corrs_params = list()
 corr_paramslist = rep("", cross.val.fold*hyperparams.to.try*num_features)
 
 lambdas_to_try <- 10^seq(-1, 4, length.out = hyperparams.to.try)
@@ -100,6 +96,7 @@ for (lambda in seq(lambdas_to_try)) {
     }
     score_params[lambda] = mean(score_fold)
     model_params[[lambda]] = model
+    corrs_params[[lambda]] = names(corrs[1:num_features])
 }
 best_param = which.max(score_params)
 print("Variance explained on crossval set: ")
@@ -110,15 +107,17 @@ print(chosen_lambda)
 print("Index of chosen lambda: ")
 print(best_param)
 chosen_model = model_params[[best_param]]
+features = corrs_params[[best_param]] # writing out the features 
+# used in the last cross-validation fold corresponding to the 
+# best (chosen) lambda. Not used, here for simplicity
+# reasons, there are better ways to choose features 
+# that are to be used on a new set of incoming data
 start = 1+ (j-1)*cross.val.fold*num_features
 end = j*cross.val.fold*num_features
 start_ = 1+(best_param-1)*cross.val.fold*num_features
 end_ = best_param*cross.val.fold*num_features
 corr_list[start:end] = corr_paramslist[start_:end_]
-corr_dat = as.data.frame(table(corr_list))
-corr_dat = corr_dat[!(corr_dat$corr_list==""),]
-sorted_corr_dat = corr_dat[order(-corr_dat$Freq),]
-features <- sorted_corr_dat[1:num_features,"corr_list"]
+print(corr_list)
 
 y_real <- as.numeric(data_test$Ratio)
 x_pred <- data_test #[,1:500]
@@ -137,9 +136,7 @@ varexp_list[j] <- get.rsq(y_real, y_pred)
 
 corr_dat = as.data.frame(table(corr_list))
 sorted_corr_dat = corr_dat[order(-corr_dat$Freq),]
-features <- sorted_corr_dat[1:num_features,]
-saveRDS(features, 'features_10_corrselect_ivfdat.rds') 
-# in the future will also need to save lambda
+print(sorted_corr_dat)
 cbind(y_real, y_pred)
 print(paste("Mean R squared: ", mean(rsq_list)))
 print(paste("Std dev of R squared: ", sd(rsq_list)))
