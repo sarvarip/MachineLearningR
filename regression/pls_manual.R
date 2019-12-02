@@ -127,7 +127,7 @@ y_pred <- y_pred[, optimal.ncomp]
 y.train.pred <- sweep(X, 2, fit$Xmeans) %*% drop(fit$coefficients) + fit$Ymeans
 y.train.pred <- y.train.pred[, optimal.ncomp]
 
-result.lm = lm(y_real ~ y_pred)
+result.lm = lm(y_pred ~ y_real)
 print(cbind(y_real, y_pred))
 
 figure.filename <- sprintf('%s_pls_nocenter.pdf', newdata.filename)

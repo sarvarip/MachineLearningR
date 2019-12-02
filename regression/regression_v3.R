@@ -128,7 +128,7 @@ y_pred <- y_pred + y_real.mean
 y.train.pred <- y.train.pred + Y.mean
 Y <- Y + Y.mean
 
-result.lm = lm(y_real ~ y_pred)
+result.lm = lm(y_pred ~ y_real)
 print(cbind(y_real, y_pred))
 
 figure.filename <- sprintf('%s_agecenter.pdf', newdata.filename)
