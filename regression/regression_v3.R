@@ -139,9 +139,9 @@ varexp_list <- get.rsq(y_real, y_pred)
 varexp_train <- get.rsq(Y, y.train.pred)
 
 pdf(figure.filename, width=6.5, height=8, paper='US')
-template <- "Test data: \n %s \n (R2=%.3f, VarExp=%.3f)"
-plot(y_pred, y_real, xlab="Actual age", ylab="Predicted age",
-     main=sprintf(template, newdata.filename, rsq_list, varexp_list))
+template <- "Independent data: \n %s \n (R2=%.3f)"
+plot(y_real, y_pred, xlab="Actual age", ylab="Predicted age",
+     main=sprintf(template, newdata.filename, varexp_list))
 abline(result.lm)
 abline(a=0, b=1, col="red", lty=2)
 dev.off()
@@ -207,8 +207,8 @@ varexp_train[i] <- get.rsq(Y, y.train.pred)
 
 }
 
-print(paste("Found features:", ncol(id.data)))
-print(paste("Total features:", length(selected.features)-1))
+#print(paste("Found features:", ncol(id.data)))
+#print(paste("Total features:", length(selected.features)-1))
 #-1 because intercept term does not count
 
 print(paste("Mean R squared: ", mean(rsq_list)))
