@@ -74,7 +74,7 @@ get.rsq <- function(y, y.hat) {
 }
 
 cross.val.fold <- 10
-ncomp <- 500
+ncomp <- 50
 n.individuals <- nrow(data)
 print("Number of samples")
 print(n.individuals)
@@ -139,7 +139,7 @@ varexp_train <- get.rsq(Y, y.train.pred)
 
 pdf(figure.filename, width=6.5, height=8, paper='US')
 template <- "Independent data: \n %s \n R2=%.3f"
-plot(y_pred, y_real, xlab="Actual age", ylab="Predicted age",
+plot(y_real, y_pred, xlab="Actual age", ylab="Predicted age",
      main=sprintf(template, newdata.filename, varexp_list))
 abline(result.lm)
 abline(a=0, b=1, col="red", lty=2)
