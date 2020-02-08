@@ -88,15 +88,8 @@ used.feat <- list()
 X_ <- data
 Y <- as.matrix(X_$Age)
 
-#Age centering
-Y.mean <- mean(Y)
-Y <- Y-Y.mean
-print(Y.mean)
-
 X_$Age <- NULL
 X <- as.matrix(X_)
-#Centering
-X <- scale(X, center=TRUE, scale=FALSE)
 
 cv0 = cv.glmnet(X,Y,type.measure="mse",alpha=alpha.lasso,
                 nfolds=cross.val.fold, foldid = foldid)
@@ -109,29 +102,18 @@ print(used.feat)
 X.test <- id.data
 y_real <- as.matrix(id.data$Age)
 
-#Calculating new data mean; if we use this, then we use the unknown Y's
-#But in a clinical setting they're obviously known
-y_real.mean <- mean(y_real)
-
 X.test$Age <- NULL
 x_pred <- as.matrix(X.test)
-#Centering
-x_pred <- scale(x_pred, center=TRUE, scale=FALSE)
 
 print("Predicting on second dataset using coefficients and best lambda")
 
 y_pred <- predict(cv0, newx = x_pred, s="lambda.min")
 y.train.pred <- predict(cv0, newx=X, s="lambda.min")
 
-#Age add mean back
-y_pred <- y_pred + y_real.mean
-y.train.pred <- y.train.pred + Y.mean
-Y <- Y + Y.mean
-
 result.lm = lm(y_pred ~ y_real)
 print(cbind(y_real, y_pred))
 
-figure.filename <- sprintf('%s_agecenter.pdf', newdata.filename)
+figure.filename <- sprintf('%s_nocenter.pdf', newdata.filename)
 
 rsq_list <- summary(result.lm)$r.squared
 mse_list <- mean((y_real - y_pred)^2)
@@ -139,7 +121,7 @@ varexp_list <- get.rsq(y_real, y_pred)
 varexp_train <- get.rsq(Y, y.train.pred)
 
 pdf(figure.filename, width=6.5, height=8, paper='US')
-template <- "Independent data: \n %s \n (R2=%.3f)"
+template <- "Independent data: \n %s \n R2=%.3f"
 plot(y_real, y_pred, xlab="Actual age", ylab="Predicted age",
      main=sprintf(template, newdata.filename, varexp_list))
 abline(result.lm)
@@ -151,7 +133,6 @@ print(paste("Number of features selected by Lasso: ",
             length(used.feat)-1)) #-1 because of intercept
 }
 
-
 print(paste("Mean R squared: ", mean(rsq_list)))
 print(paste("Mean MSE: ", mean(mse_list)))
 print(paste("Mean of variance explained: ", mean(varexp_list)))
@@ -161,7 +142,7 @@ print(paste("Number of features: ", ncol(data)-1))
 
 print("Training on second dataset using selected features")
 
-if (alpha.lasso>0) {
+if (alpha.lasso > 0) {
 selected.features <- used.feat
 featlen <- length(selected.features)
 selected.features[featlen+1] <- "Age"
@@ -212,8 +193,7 @@ varexp_train[i] <- get.rsq(Y, y.train.pred)
 }
 
 print(paste("Found features:", ncol(id.data)))
-
-if (alpha.lasso > 1) {
+if (alpha.lasso > 0) {
 print(paste("Total features:", length(selected.features)-1))
 #-1 because intercept term does not count
 }
