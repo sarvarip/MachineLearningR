@@ -2,8 +2,6 @@ sigm = function(x){
   return (1/(1+exp(-x)))
 }
 
-normalize <- function(x) {x / sqrt(sum(x^2))}
-
 evaluate = function(y,mu){
   norows = length(y)
   mse = 1/norows * (sum((y-mu)^2))
@@ -25,29 +23,38 @@ updateweight = function(X,n,y,lam,weight){
  return (weight - update)
 }
 
-binreg = function(X,n,y,lam,iter,noprepend){
+binreg = function(X,n,y,lam,iter){
   i = 0
   norows = length(y)
-  if (missing(noprepend)){
-    X = cbind(rep(1, norows), X)
-  }
-  nofeat = ncol(X)
+  std = apply(X, 2, sd)
+  avg = apply(X, 2, mean)
+  Xscaled = scale(X)
+  Xscaled = cbind(rep(1, norows), Xscaled)
+  nofeat = ncol(Xscaled)
   weight = rnorm(nofeat)
-  ypred = binpredict(X,n,weight)
+  ypred = binpredict(Xscaled,n,weight)
   mse.baseline = evaluate(y,ypred)
+  mse.baseline = mse.baseline / 3
+  #We expect to mse to be reduced at least 
+  #by 67% after correct Newton's iteration
+  #print(mse.baseline)
   while(i<iter){
     #print(weight)
-    weight = updateweight(X,n,y,lam,weight)
-    ypred = binpredict(X,n,weight)
+    weight = updateweight(Xscaled,n,y,lam,weight)
+    ypred = binpredict(Xscaled,n,weight)
     mse = evaluate(y,ypred)
     #print(mse)
     i = i + 1
   }
+  #transform weights back as if was unscaled
+  weight[2:nofeat] = weight[2:nofeat] / std
+  weightbias = weight[1] - sum(avg*weight[2:nofeat]) 
+  weight[1] = weightbias
   if (mse>mse.baseline){
     #In case Newton's does not converge
     #just run again
     print("Did not converge, retrying...")
-    weight = binreg(X,n,y,lam,iter,1)
+    weight = binreg(X,n,y,lam,iter)
   }
   return (weight)
 }
@@ -108,7 +115,7 @@ lam = 0.001
 #mse = evaluate(y.train,ypred)
 
 best.lambda = cv.binpredict(data.train, n.train, y.train)
-iter = 10*nrow(data.train)
+iter = nrow(data.train)
 weight = binreg(data.train,n.train,y.train,best.lambda,iter)
 ypred = binpredict(data.train,n.train,weight)
 mse = evaluate(y.train,ypred)
